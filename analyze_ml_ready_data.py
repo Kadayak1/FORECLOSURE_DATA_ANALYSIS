@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import logging
 import os
+import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.model_selection import train_test_split
 
 # Import the preprocessing module
@@ -29,73 +31,80 @@ def get_user_choice():
     while True:
         try:
             choice = int(input("\nEnter your choice (1-4): "))
-            if choice in [1, 2, 3, 4]:
+            if 1 <= choice <= 4:
                 return choice
             else:
-                print("Please enter a valid option (1-4)")
+                print("Please enter a number between 1 and 4.")
         except ValueError:
-            print("Please enter a number between 1 and 4")
+            print("Please enter a valid number.")
 
-def debug_data_issues(df, X, y, X_train, X_test, y_train, y_test):
-    """Debug data issues that might be causing the high model accuracy."""
-    logging.info("=== DEBUGGING DATA ISSUES ===")
+def debug_data_preprocessing(df):
+    """Debug data preprocessing to identify potential issues."""
+    logging.info("Starting data preprocessing debug...")
     
-    # Check for data leakage - direct leakage from target in features
-    logging.info("Checking for direct data leakage...")
-    for col in X.columns:
-        if 'foreclosure' in col.lower() or 'source' in col.lower():
-            logging.warning(f"Potential leakage in column: {col}")
+    # Check for temporal patterns
+    logging.info("Checking temporal patterns...")
+    df['sale_date'] = pd.to_datetime(df['sale_date'], format='%d-%m-%Y', errors='coerce')
     
-    # Check train/test split
-    logging.info(f"Train data shape: {X_train.shape}, Test data shape: {X_test.shape}")
-    logging.info(f"Train class balance: {y_train.mean():.2%} foreclosures")
-    logging.info(f"Test class balance: {y_test.mean():.2%} foreclosures")
+    # Examine foreclosure distribution over time
+    foreclosure_by_year = df.groupby([df['source'], df['sale_date'].dt.year])['property_id'].count().unstack(0)
     
-    # Check for duplicate rows between train and test
-    train_df = pd.concat([X_train, y_train], axis=1)
-    test_df = pd.concat([X_test, y_test], axis=1)
+    # Plot historical trend
+    plt.figure(figsize=(12, 6))
+    if 'foreclosure' in foreclosure_by_year.columns:
+        plt.plot(foreclosure_by_year.index, foreclosure_by_year['foreclosure'], 
+                label='Foreclosures', marker='o', linewidth=2)
+    if 'regular' in foreclosure_by_year.columns:
+        plt.plot(foreclosure_by_year.index, foreclosure_by_year['regular'], 
+                label='Regular Sales', marker='x', linewidth=2)
+    plt.title('Sales by Year')
+    plt.xlabel('Year')
+    plt.ylabel('Number of Sales')
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig('outputs/general/temporal_distribution.png')
     
-    # Count matches
-    merged = pd.merge(train_df, test_df, how='inner')
-    logging.info(f"Duplicate rows between train and test: {len(merged)}")
-    if len(merged) > 0:
-        logging.warning("Found duplicate rows between train and test sets!")
-        logging.info(f"Percentage of test data duplicated in train: {len(merged)/len(test_df):.2%}")
+    # Examine property type distributions
+    prop_types = pd.crosstab(df['source'], df['property_type'])
+    prop_pct = prop_types.div(prop_types.sum(axis=1), axis=0) * 100
     
-    # Check correlation matrix
-    logging.info("Top feature correlations with target:")
-    # Convert to DataFrame for ease of manipulation
-    X_y = pd.concat([X, y], axis=1)
-    corrs = X_y.corr()['is_foreclosure'].sort_values(ascending=False)
-    logging.info(corrs[:10].to_string())
-    logging.info("Bottom feature correlations with target:")
-    logging.info(corrs[-10:].to_string())
+    plt.figure(figsize=(12, 6))
+    prop_pct.plot(kind='bar')
+    plt.title('Property Types by Source (%)')
+    plt.ylabel('Percentage')
+    plt.tight_layout()
+    plt.savefig('outputs/general/property_type_distribution.png')
     
-    # Check for missing values
-    logging.info(f"Missing values in features: {X.isnull().sum().sum()}")
-    
-    # Check unique values for each feature to identify perfect predictors
-    for col in X.columns:
-        n_unique = X[col].nunique()
-        logging.info(f"Feature '{col}' has {n_unique} unique values")
+    # Create debug output file
+    with open('outputs/general/debug_info.txt', 'w') as f:
+        f.write("Data Distribution Analysis\n")
+        f.write("=========================\n\n")
         
-        # If few unique values, check distribution by target
-        if n_unique <= 10:
-            cross_tab = pd.crosstab(X[col], y)
-            logging.info(f"Distribution of {col} by target:\n{cross_tab}")
-    
-    # Save debugging results
-    if not os.path.exists('outputs/debug'):
-        os.makedirs('outputs/debug')
+        # Class balance
+        class_balance = df['source'].value_counts(normalize=True)
+        f.write(f"Class balance:\n{class_balance.to_string()}\n\n")
         
-    # Export samples from train and test for manual inspection
-    X_train.sample(min(10, len(X_train))).to_csv('outputs/debug/train_sample.csv')
-    X_test.sample(min(10, len(X_test))).to_csv('outputs/debug/test_sample.csv')
+        # Property type distribution
+        f.write(f"Property types by source:\n{prop_types.to_string()}\n\n")
+        f.write(f"Property types percentage by source:\n{prop_pct.round(1).to_string()}\n\n")
+        
+        # Temporal ranges
+        f.write("Date ranges:\n")
+        for source in df['source'].unique():
+            min_date = df[df['source'] == source]['sale_date'].min()
+            max_date = df[df['source'] == source]['sale_date'].max()
+            f.write(f"{source}: {min_date} to {max_date}\n")
+        
+        # Missing values by source
+        f.write("\nMissing values by source:\n")
+        for source in df['source'].unique():
+            src_df = df[df['source'] == source]
+            f.write(f"\n{source}:\n{src_df.isnull().sum().to_string()}\n")
     
-    # Save correlation matrix
-    corrs.to_csv('outputs/debug/target_correlations.csv')
+    logging.info("Debug information saved to outputs/general/debug_info.txt")
     
-    logging.info("Debug information saved to outputs/debug/")
+    return foreclosure_by_year
 
 def main():
     # Create output folders
@@ -114,82 +123,51 @@ def main():
     with open('outputs/general/missing_values.txt', 'w') as f:
         f.write(df.isnull().sum().to_string())
     
+    # Get the user's choice from the menu
+    choice = get_user_choice()
+    
+    if choice == 4:
+        # Debug data preprocessing
+        debug_info = debug_data_preprocessing(df)
+        logging.info("Debugging completed. Check outputs/general/ for results.")
+        return
+    
     # Use different preprocessing approaches for comparison
     # 1. Standard preprocessing (without price features to avoid leakage)
     X, y, df_processed = prepare_features(df, check_leakage=True, remove_price_features=True)
     
-    # Check class balance
-    foreclosure_ratio = y.mean()
-    logging.info(f"Class balance: {foreclosure_ratio:.2%} foreclosures, {1-foreclosure_ratio:.2%} regular sales")
+    # Log class balance
+    logging.info(f"Class balance: {y.mean()*100:.2f}% foreclosures, {(1-y.mean())*100:.2f}% regular sales")
     
-    # Basic EDA and correlations
+    # Plot feature distributions
     plot_data_distributions(df_processed)
-    analyze_feature_correlations(df_processed)
     
-    # Ensure proper train/test split without possible contamination
-    # Use a deterministic but unique index to ensure consistent splits across runs
-    # but avoid using potentially leaky properties like price for stratification
+    # Analyze correlations between features and target
+    analyze_feature_correlations(X, y)
     
-    # Create a composite stratification variable to ensure balance in key categories
-    # without directly using the target (which would still result in a proper split)
-    strat_var = pd.Series(0, index=y.index)
-    if 'property_type_villa' in X.columns:
-        strat_var += X['property_type_villa'] * 4
-    if 'property_type_ejerlejlighed' in X.columns:
-        strat_var += X['property_type_ejerlejlighed'] * 2
-    if 'sale_year' in X.columns:
-        strat_var += (X['sale_year'] > 2020).astype(int)
-    
-    # Split data using this balanced stratification
-    from sklearn.model_selection import train_test_split
+    # Train-test split with stratification to maintain class balance
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=strat_var
+        X, y, test_size=0.2, random_state=42, stratify=y
     )
     
-    # Verify no overlap between train and test due to duplicated properties
-    train_ids = set(X_train.index)
-    test_ids = set(X_test.index) 
-    overlap = train_ids.intersection(test_ids)
-    if overlap:
-        logging.warning(f"Found {len(overlap)} overlapping indices between train and test")
-        # If there are overlaps, recreate a cleaner split
-        unique_indices = sorted(list(set(X.index)))
-        train_size = int(0.8 * len(unique_indices))
-        train_indices = unique_indices[:train_size]
-        test_indices = unique_indices[train_size:]
-        X_train, X_test = X.loc[train_indices], X.loc[test_indices]
-        y_train, y_test = y.loc[train_indices], y.loc[test_indices]
-        logging.info(f"Created clean split - Train: {X_train.shape}, Test: {X_test.shape}")
+    models_performance = {}
     
-    # Get user choice for model selection
-    choice = get_user_choice()
+    # Run model(s) based on user choice
+    if choice in [1, 3]:
+        # Train and evaluate dummy classifiers
+        dummy_metrics = train_dummy_classifiers(X_train, X_test, y_train, y_test)
+        models_performance['dummy'] = dummy_metrics
     
-    # Initialize model variables
-    dummy_models = None
-    rf_model = None
+    if choice in [2, 3]:
+        # Train and evaluate random forest
+        rf_metrics = train_random_forest(X_train, X_test, y_train, y_test, X)
+        models_performance['random_forest'] = rf_metrics
     
-    # Debug mode
-    if choice == 4:
-        debug_data_issues(df, X, y, X_train, X_test, y_train, y_test)
-        return
-        
-    # Train models based on user choice
-    if choice in [1, 3]:  # Dummy or Both
-        dummy_models = train_dummy_classifiers(X_train, X_test, y_train, y_test)
-    
-    if choice in [2, 3]:  # Random Forest or Both
-        rf_model = train_random_forest(X_train, X_test, y_train, y_test, X)
-    
-    # If all models were run, create comparison
+    # If running both models, compare their performance
     if choice == 3:
-        models_dict = {
-            'Dummy (most_frequent)': dummy_models.get('most_frequent'),
-            'Dummy (stratified)': dummy_models.get('stratified'),
-            'Random Forest': rf_model
-        }
-        compare_models(models_dict, X_test, y_test)
+        compare_models(models_performance, X_test, y_test)
     
     logging.info("Analysis complete. Check the output folders for results.")
-    
+
 if __name__ == "__main__":
     main() 
