@@ -154,7 +154,8 @@ def prepare_features(df, check_leakage=True, remove_price_features=True, feature
     logging.info(f"Shape after dropping missing target: {df_ml.shape}")
     
     # Define temporal features
-    temporal_features = ['sale_year', 'sale_month', 'sale_quarter', 'sale_day_of_week', 'economic_era'] 
+    temporal_features = ['sale_year', 'sale_month', 'sale_quarter', 'sale_day_of_week', 'economic_era',
+                         'season', 'is_weekend', 'property_season'] 
     
     # Define price-related features
     price_features = ['Price', 'rolling_3m_price_mean', 'price_yoy_change']
@@ -187,7 +188,7 @@ def prepare_features(df, check_leakage=True, remove_price_features=True, feature
         exclude_cols = basic_exclude + temporal_features
         
         # Separate numeric and categorical features
-        numeric_features = ['Living_Area', 'Rooms', 'floor_count', 'is_weekend']
+        numeric_features = ['Living_Area', 'Rooms', 'floor_count']
         
         # Keep price features unless explicitly told to remove them
         if not remove_price_features:
@@ -198,7 +199,7 @@ def prepare_features(df, check_leakage=True, remove_price_features=True, feature
         exclude_cols = basic_exclude + temporal_features + price_features
         
         # Separate numeric and categorical features - only property characteristics
-        numeric_features = ['Living_Area', 'Rooms', 'floor_count', 'is_weekend']
+        numeric_features = ['Living_Area', 'Rooms', 'floor_count']
     else:
         raise ValueError(f"Unknown feature_set: {feature_set}")
     
@@ -230,9 +231,21 @@ def prepare_features(df, check_leakage=True, remove_price_features=True, feature
                           and df_ml[col].dtype == 'object'
                           and df_ml[col].nunique() < 30]  # Avoid columns with too many categories
     
-    # For 'no_temporal' and 'no_price_temporal' feature sets, ensure economic_era is excluded
-    if feature_set != 'full' and 'economic_era' in categorical_features:
-        categorical_features.remove('economic_era')
+    # For non-full feature sets, ensure all temporal-derived features are excluded
+    if feature_set != 'full':
+        # Remove any categorical features that are derived from temporal features
+        temporal_derived = [col for col in categorical_features 
+                         if any(temp in col for temp in ['season', 'year', 'month', 'quarter', 'day', 'weekend'])]
+        
+        for col in temporal_derived:
+            if col in categorical_features:
+                categorical_features.remove(col)
+                logging.info(f"Removed temporal-derived feature: {col}")
+
+        # Specifically ensure economic_era is excluded
+        if 'economic_era' in categorical_features:
+            categorical_features.remove('economic_era')
+            logging.info("Removed economic_era feature")
     
     logging.info(f"Final numeric columns: {numeric_features}")
     logging.info(f"Final categorical columns: {categorical_features}")

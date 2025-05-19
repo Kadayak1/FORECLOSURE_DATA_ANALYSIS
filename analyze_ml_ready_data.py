@@ -169,6 +169,11 @@ def main():
         if feature_set == 'no_price':
             # For 'no_price', we want to exclude price features but keep temporal features
             X, y, df_processed = prepare_features(df, check_leakage=True, remove_price_features=True, feature_set='full')
+            
+            # Make sure is_weekend is included in the features since it's a temporal feature we want to keep
+            if 'is_weekend' not in X.columns and 'is_weekend' in df_processed.columns:
+                X = pd.concat([X, df_processed[['is_weekend']]], axis=1)
+                logging.info("Added is_weekend back to the no_price feature set")
         else:
             X, y, df_processed = prepare_features(df, check_leakage=True, remove_price_features=False, feature_set=feature_set)
         
