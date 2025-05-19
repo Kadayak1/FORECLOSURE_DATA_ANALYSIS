@@ -1,0 +1,69 @@
+Data Distribution Analysis
+=========================
+
+Class balance:
+is_foreclosure
+0    0.705279
+1    0.294721
+
+Property types by source:
+Property_Type   Ejerlejlighed  Fritidsbolig  Rækkehus  Villa  Villalejlighed
+is_foreclosure                                                              
+0                         691             0       297    452               3
+1                         258             2        59    233              51
+
+Property types percentage by source:
+Property_Type   Ejerlejlighed  Fritidsbolig  Rækkehus  Villa  Villalejlighed
+is_foreclosure                                                              
+0                        47.9           0.0      20.6   31.3             0.2
+1                        42.8           0.3       9.8   38.6             8.5
+
+Date ranges:
+1: 1992-02-07 00:00:00 to 2025-02-04 00:00:00
+0: 1992-02-19 00:00:00 to 2025-05-07 00:00:00
+
+Missing values by source:
+
+1:
+Property ID         0
+Address             0
+Postal_Code         0
+Property_Type       0
+Sale Type           0
+Sale Date           0
+Price               0
+Total Sales         0
+City               62
+Heating_Type       62
+Link               62
+Living_Area        62
+Roof_Type          62
+Rooms              62
+URL                62
+Wall_Material      62
+Weighted_Area     349
+is_foreclosure      0
+transaction_id      0
+sale_date           0
+
+0:
+Property ID         0
+Address            52
+Postal_Code        52
+Property_Type       0
+Sale Type           0
+Sale Date           0
+Price               0
+Total Sales         0
+City               52
+Heating_Type       55
+Link               52
+Living_Area        52
+Roof_Type          55
+Rooms              52
+URL                52
+Wall_Material      55
+Weighted_Area     764
+is_foreclosure      0
+transaction_id      0
+sale_date           0

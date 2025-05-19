@@ -35,10 +35,10 @@ def engineer_features(df):
     
     # Create binary target based on sale_type (1 for foreclosure auction, 0 for not)
     # This is more direct than using the 'source' column
-    df_fe['is_foreclosure'] = df_fe['sale_type'].apply(lambda x: 1 if x.lower() == 'tvangsauktion' else 0)
+    df_fe['is_foreclosure'] = df_fe['Sale Type'].apply(lambda x: 1 if x.lower() == 'tvangsauktion' else 0)
     
     # Extract features from sale_date
-    df_fe['sale_date'] = pd.to_datetime(df_fe['sale_date'], format='%d-%m-%Y', errors='coerce')
+    df_fe['sale_date'] = pd.to_datetime(df_fe['Sale Date'], format='%d-%m-%Y', errors='coerce')
     df_fe['sale_year'] = df_fe['sale_date'].dt.year
     df_fe['sale_month'] = df_fe['sale_date'].dt.month
     df_fe['sale_quarter'] = df_fe['sale_date'].dt.quarter
@@ -50,13 +50,13 @@ def engineer_features(df):
     df_fe['is_weekend'] = df_fe['sale_day_of_week'].apply(lambda x: 1 if x >= 5 else 0)
     
     # Create postal_region feature (first two digits of postal code)
-    df_fe['postal_region'] = df_fe['postal_code'].astype(str).str[:2]
+    df_fe['postal_region'] = df_fe['Postal_Code'].astype(str).str[:2]
     df_fe.loc[df_fe['postal_region'] == 'na', 'postal_region'] = 'na'
     
     # Bin cities with low counts to reduce dimensionality
-    city_counts = df_fe['city'].value_counts()
+    city_counts = df_fe['City'].value_counts()
     cities_to_keep = city_counts[city_counts >= 10].index
-    df_fe['city_binned'] = df_fe['city'].apply(lambda x: x if x in cities_to_keep else 'other')
+    df_fe['city_binned'] = df_fe['City'].apply(lambda x: x if x in cities_to_keep else 'other')
     
     # Add season feature
     df_fe['season'] = df_fe['sale_month'].apply(
@@ -67,55 +67,27 @@ def engineer_features(df):
     )
     
     # Create interaction features that might be predictive
-    df_fe['property_season'] = df_fe['property_type'] + '_' + df_fe['season']
+    df_fe['property_season'] = df_fe['Property_Type'] + '_' + df_fe['season']
     
     # Handle missing values more intelligently
-    # Fill missing floor_count with median by property_type
-    floor_medians = df_fe.groupby('property_type')['floor_count'].median()
-    for prop_type in df_fe['property_type'].unique():
-        mask = (df_fe['property_type'] == prop_type) & (df_fe['floor_count'].isna())
-        df_fe.loc[mask, 'floor_count'] = floor_medians.get(prop_type, df_fe['floor_count'].median())
+    # Fill missing floor_count with median by property_type if it exists
+    if 'floor_count' in df_fe.columns:
+        floor_medians = df_fe.groupby('Property_Type')['floor_count'].median()
+        for prop_type in df_fe['Property_Type'].unique():
+            mask = (df_fe['Property_Type'] == prop_type) & (df_fe['floor_count'].isna())
+            df_fe.loc[mask, 'floor_count'] = floor_medians.get(prop_type, df_fe['floor_count'].median())
     
     # Fill missing rooms with median by property_type
-    room_medians = df_fe.groupby('property_type')['rooms'].median()
-    for prop_type in df_fe['property_type'].unique():
-        mask = (df_fe['property_type'] == prop_type) & (df_fe['rooms'].isna())
-        df_fe.loc[mask, 'rooms'] = room_medians.get(prop_type, df_fe['rooms'].median())
+    room_medians = df_fe.groupby('Property_Type')['Rooms'].median()
+    for prop_type in df_fe['Property_Type'].unique():
+        mask = (df_fe['Property_Type'] == prop_type) & (df_fe['Rooms'].isna())
+        df_fe.loc[mask, 'Rooms'] = room_medians.get(prop_type, df_fe['Rooms'].median())
     
     # Fill missing living_area with median by property_type
-    area_medians = df_fe.groupby('property_type')['living_area'].median()
-    for prop_type in df_fe['property_type'].unique():
-        mask = (df_fe['property_type'] == prop_type) & (df_fe['living_area'].isna())
-        df_fe.loc[mask, 'living_area'] = area_medians.get(prop_type, df_fe['living_area'].median())
-    
-    # NEW FEATURE 1: Yearly foreclosure rates (calculate historical rates)
-    yearly_foreclosure_counts = df_fe.groupby('sale_year')['is_foreclosure'].sum()
-    yearly_total_counts = df_fe.groupby('sale_year').size()
-    yearly_foreclosure_rates = (yearly_foreclosure_counts / yearly_total_counts).fillna(0)
-    
-    # Add yearly foreclosure rate to each property
-    df_fe['yearly_foreclosure_rate'] = df_fe['sale_year'].map(yearly_foreclosure_rates)
-    
-    # NEW FEATURE 2: Economic era binning 
-    # Define economic eras
-    # Pre-Financial Crisis (before 2008)
-    # Financial Crisis (2008-2012)
-    # Recovery Period (2013-2019)
-    # COVID Period (2020-2021)
-    # Post-COVID (2022 onwards)
-    def assign_economic_era(year):
-        if year < 2008:
-            return 'pre_financial_crisis'
-        elif 2008 <= year <= 2012:
-            return 'financial_crisis'
-        elif 2013 <= year <= 2019:
-            return 'recovery_period'
-        elif 2020 <= year <= 2021:
-            return 'covid_period'
-        else:
-            return 'post_covid'
-    
-    df_fe['economic_era'] = df_fe['sale_year'].apply(assign_economic_era)
+    area_medians = df_fe.groupby('Property_Type')['Living_Area'].median()
+    for prop_type in df_fe['Property_Type'].unique():
+        mask = (df_fe['Property_Type'] == prop_type) & (df_fe['Living_Area'].isna())
+        df_fe.loc[mask, 'Living_Area'] = area_medians.get(prop_type, df_fe['Living_Area'].median())
     
     # NEW FEATURE 3: Create rolling statistics
     # We need to sort by date for rolling statistics to make sense
@@ -130,13 +102,13 @@ def engineer_features(df):
         rolling_results = []
         
         for name, group in postal_groups:
-            if 'price' in group.columns and len(group) >= 3:
+            if 'Price' in group.columns and len(group) >= 3:
                 group = group.sort_values('sale_date')
                 # Calculate 3-month rolling mean of prices
-                group['rolling_3m_price_mean'] = group['price'].rolling(window=3, min_periods=1).mean()
+                group['rolling_3m_price_mean'] = group['Price'].rolling(window=3, min_periods=1).mean()
                 # Calculate year-on-year percentage changes if we have enough data
                 if len(group) > 12:
-                    group['price_yoy_change'] = group['price'].pct_change(periods=12)
+                    group['price_yoy_change'] = group['Price'].pct_change(periods=12)
                 else:
                     group['price_yoy_change'] = np.nan
                 rolling_results.append(group)
@@ -146,14 +118,14 @@ def engineer_features(df):
     
     # Fill NaNs in new columns with appropriate values
     if 'rolling_3m_price_mean' in df_fe.columns:
-        df_fe['rolling_3m_price_mean'] = df_fe['rolling_3m_price_mean'].fillna(df_fe['price'])
+        df_fe['rolling_3m_price_mean'] = df_fe['rolling_3m_price_mean'].fillna(df_fe['Price'])
     
     if 'price_yoy_change' in df_fe.columns:
         df_fe['price_yoy_change'] = df_fe['price_yoy_change'].fillna(0)
     
     return df_fe
 
-def prepare_features(df, check_leakage=True, remove_price_features=True):
+def prepare_features(df, check_leakage=True, remove_price_features=True, feature_set='no_temporal'):
     """Prepare features for ML: encode categoricals and handle missing values.
     
     Parameters:
@@ -164,13 +136,15 @@ def prepare_features(df, check_leakage=True, remove_price_features=True):
         Whether to check for and remove potential target leakage
     remove_price_features : bool
         Whether to remove price features that may create artifactual correlations
+    feature_set : str
+        Which feature set to use: 'full', 'no_temporal', or 'no_price_temporal'
         
     Returns:
     --------
     tuple
         (X, y, df_processed) - features, target, and processed dataframe
     """
-    logging.info("Preparing features for ML...")
+    logging.info(f"Preparing features for ML using feature set: {feature_set}...")
     
     # Engineer features
     df_ml = engineer_features(df)
@@ -179,31 +153,62 @@ def prepare_features(df, check_leakage=True, remove_price_features=True):
     df_ml = df_ml.dropna(subset=['is_foreclosure'])
     logging.info(f"Shape after dropping missing target: {df_ml.shape}")
     
-    # Exclude price-related features if specified to avoid potential data leakage
-    if remove_price_features:
-        logging.info("Excluding price-related features to avoid potential data leakage")
-        price_cols = ['price']
-        df_ml = df_ml.drop(columns=price_cols, errors='ignore')
+    # Define temporal features
+    temporal_features = ['sale_year', 'sale_month', 'sale_quarter', 'sale_day_of_week', 'economic_era'] 
     
-    # Exclude temporal features far in the future to avoid temporal leakage
-    if check_leakage:
-        logging.info("Checking for potential data leakage...")
-        # Make sure the test set doesn't have future dates not in training set
+    # Define price-related features
+    price_features = ['Price', 'rolling_3m_price_mean', 'price_yoy_change']
     
     # Get target
     y = df_ml['is_foreclosure']
     
-    # Separate numeric and categorical features
-    numeric_features = ['living_area', 'rooms', 'floor_count', 'sale_year', 'sale_month', 
-                        'sale_quarter', 'sale_day_of_week', 'is_weekend', 
-                        'yearly_foreclosure_rate']  # Added yearly_foreclosure_rate
+    # Basic exclude columns (always excluded)
+    basic_exclude = ['Property ID', 'Address', 'Link', 'URL', 'is_foreclosure', 
+                    'sale_date', 'Sale Date', 'Weighted_Area', 'transaction_id', 'Sale Type']
     
-    # Add rolling statistics if they exist
-    if 'rolling_3m_price_mean' in df_ml.columns:
-        numeric_features.append('rolling_3m_price_mean')
+    # Configure feature inclusion based on feature_set parameter
+    if feature_set == 'full':
+        logging.info("Using ALL features (including temporal and price features)")
+        exclude_cols = basic_exclude.copy()
+        # Keep price features unless explicitly told to remove them
+        if remove_price_features:
+            exclude_cols.extend(price_features)
+        
+        # Separate numeric and categorical features
+        numeric_features = ['Living_Area', 'Rooms', 'floor_count', 'is_weekend', 
+                          'sale_year', 'sale_month', 'sale_quarter', 'sale_day_of_week']
+        
+        # Add yearly_foreclosure_rate if it exists
+        if 'yearly_foreclosure_rate' in df_ml.columns:
+            numeric_features.append('yearly_foreclosure_rate')
+            
+    elif feature_set == 'no_temporal':
+        logging.info("Excluding temporal features")
+        exclude_cols = basic_exclude + temporal_features
+        
+        # Separate numeric and categorical features
+        numeric_features = ['Living_Area', 'Rooms', 'floor_count', 'is_weekend']
+        
+        # Keep price features unless explicitly told to remove them
+        if not remove_price_features:
+            numeric_features.extend([f for f in price_features if f in df_ml.columns])
+            
+    elif feature_set == 'no_price_temporal':
+        logging.info("Excluding both price and temporal features")
+        exclude_cols = basic_exclude + temporal_features + price_features
+        
+        # Separate numeric and categorical features - only property characteristics
+        numeric_features = ['Living_Area', 'Rooms', 'floor_count', 'is_weekend']
+    else:
+        raise ValueError(f"Unknown feature_set: {feature_set}")
     
-    if 'price_yoy_change' in df_ml.columns:
-        numeric_features.append('price_yoy_change')
+    # Add rolling statistics if they exist and should be included
+    if feature_set != 'no_price_temporal':
+        if 'rolling_3m_price_mean' in df_ml.columns and 'rolling_3m_price_mean' not in exclude_cols:
+            numeric_features.append('rolling_3m_price_mean')
+        
+        if 'price_yoy_change' in df_ml.columns and 'price_yoy_change' not in exclude_cols:
+            numeric_features.append('price_yoy_change')
     
     # Remove features with too many missing values
     for col in numeric_features[:]:
@@ -214,21 +219,20 @@ def prepare_features(df, check_leakage=True, remove_price_features=True):
     # Keep only numeric features that exist in the dataframe
     numeric_features = [f for f in numeric_features if f in df_ml.columns]
     
-    # Categorical features (exclude certain columns)
-    exclude_cols = ['property_id', 'address', 'link', 'source_site', 'url', 'is_foreclosure', 
-                   'sale_date', 'source', 'weighted_area', 'postal_code', 'sale_type']  # Added sale_type to exclude cols
-    if remove_price_features:
-        exclude_cols.append('price')
+    # Make sure all exclude columns are lowercase for case-insensitive matching
+    exclude_cols_lower = [col.lower() if isinstance(col, str) else col for col in exclude_cols]
     
+    # Categorical features
     categorical_features = [col for col in df_ml.columns 
                           if col not in numeric_features 
+                          and col.lower() not in exclude_cols_lower
                           and col not in exclude_cols
                           and df_ml[col].dtype == 'object'
                           and df_ml[col].nunique() < 30]  # Avoid columns with too many categories
     
-    # Make sure economic_era is included in categorical features
-    if 'economic_era' in df_ml.columns and 'economic_era' not in categorical_features:
-        categorical_features.append('economic_era')
+    # For 'no_temporal' and 'no_price_temporal' feature sets, ensure economic_era is excluded
+    if feature_set != 'full' and 'economic_era' in categorical_features:
+        categorical_features.remove('economic_era')
     
     logging.info(f"Final numeric columns: {numeric_features}")
     logging.info(f"Final categorical columns: {categorical_features}")
@@ -248,17 +252,11 @@ def prepare_features(df, check_leakage=True, remove_price_features=True):
     # Check if X has too many features and perform dimensionality reduction if needed
     if X.shape[1] > 100:
         logging.warning(f"High feature dimensionality: {X.shape[1]} features. Consider dimensionality reduction.")
-    
-    # Log class balance
-    logging.info(f"Class balance: {y.mean()*100:.2f}% foreclosures, {(1-y.mean())*100:.2f}% regular sales")
-    
-    # Log features used
-    logging.info(f"Features used: {X.columns.tolist()}")
-    
+        
     return X, y, df_ml
 
 def analyze_feature_correlations(X, y, output_dir='outputs/general'):
-    """Analyze correlations between features and target.
+    """Analyze correlations between features and the target variable.
     
     Parameters:
     -----------
@@ -267,257 +265,115 @@ def analyze_feature_correlations(X, y, output_dir='outputs/general'):
     y : Series
         Target variable
     output_dir : str
-        Directory to save outputs
+        Directory to save the correlation analysis
     """
-    # Create a copy with target
-    X_with_target = X.copy()
-    X_with_target['is_foreclosure'] = y
+    logging.info("Analyzing feature correlations...")
     
-    # Calculate correlation with target for all features
-    corr_with_target = []
-    for col in X.columns:
-        if pd.api.types.is_numeric_dtype(X[col]):
-            corr = X[col].corr(y)
-            corr_with_target.append((col, corr))
+    # Create output directory if it doesn't exist
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
     
-    # Sort by absolute correlation
-    corr_with_target = sorted(corr_with_target, key=lambda x: abs(x[1]), reverse=True)
+    # Create a dataframe with features and target for correlation analysis
+    data_corr = X.copy()
+    data_corr['target'] = y
     
-    # Prepare a dataframe for plotting
-    corr_df = pd.DataFrame(corr_with_target, columns=['feature', 'correlation'])
+    # Calculate correlations with target
+    target_corrs = data_corr.corr()['target'].sort_values(ascending=False)
     
-    # Display top 20 correlations
-    top_20 = corr_df.head(20)
+    # Save top and bottom correlations to a file
+    with open(f'{output_dir}/feature_correlations.txt', 'w') as f:
+        f.write("Top 20 positive correlations with foreclosure status:\n")
+        f.write(target_corrs.head(20).to_string())
+        f.write("\n\nTop 20 negative correlations with foreclosure status:\n")
+        f.write(target_corrs.tail(20).to_string())
     
-    # Create plot
+    # Plot top N correlations
+    top_n = 15
     plt.figure(figsize=(10, 8))
-    bars = plt.barh(top_20['feature'], top_20['correlation'].abs())
     
-    # Color bars based on positive/negative correlation
-    for i, bar in enumerate(bars):
-        if top_20['correlation'].iloc[i] > 0:
-            bar.set_color('green')
-        else:
-            bar.set_color('red')
+    # Get top positive and negative correlations (excluding target itself)
+    top_pos_corrs = target_corrs[1:top_n+1]  # Skip the first which is target with itself
+    top_neg_corrs = target_corrs[-(top_n):].iloc[::-1]  # Reverse to show most negative first
     
-    plt.title('Top 20 Feature Correlations with Foreclosure Status')
-    plt.xlabel('Absolute Correlation')
+    # Plot positive correlations
+    plt.subplot(2, 1, 1)
+    sns.barplot(x=top_pos_corrs.values, y=top_pos_corrs.index)
+    plt.title(f'Top {top_n} Positive Correlations with Foreclosure')
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, 'feature_correlations.png'))
     
-    # Save top correlations to CSV
-    corr_df.to_csv(os.path.join(output_dir, 'feature_correlations.csv'), index=False)
+    # Plot negative correlations
+    plt.subplot(2, 1, 2)
+    sns.barplot(x=top_neg_corrs.values, y=top_neg_corrs.index)
+    plt.title(f'Top {top_n} Negative Correlations with Foreclosure')
+    plt.tight_layout()
     
-    # Save detailed correlation analysis for later reference
-    X_with_target.corr().to_csv(os.path.join(output_dir, 'full_correlation_matrix.csv'))
+    plt.subplots_adjust(hspace=0.5)
+    plt.savefig(f'{output_dir}/feature_correlations.png')
     
-    # Also show correlation matrix for top correlated features
-    top_features = top_20['feature'].tolist()
-    if len(top_features) > 5:  # Ensure we have enough features for the heatmap
-        plt.figure(figsize=(12, 10))
-        top_corr = X_with_target[top_features + ['is_foreclosure']].corr()
-        sns.heatmap(top_corr, annot=True, cmap='coolwarm', fmt='.2f')
-        plt.title('Correlation Matrix for Top Features')
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_dir, 'top_features_correlation_matrix.png'))
-    
-    return corr_df
+    logging.info(f"Correlation analysis saved to {output_dir}/feature_correlations.png")
 
 def plot_data_distributions(df_processed, output_dir='outputs/general'):
-    """Plot distributions of key features to understand the data better.
+    """Plot distributions of various features and save to output directory.
     
     Parameters:
     -----------
     df_processed : DataFrame
-        Processed dataframe with features and target
+        Processed data
     output_dir : str
-        Directory to save outputs
+        Directory to save plots
     """
-    os.makedirs(output_dir, exist_ok=True)
+    logging.info("Plotting data distributions...")
     
-    # Create distributions directory
-    dist_dir = f'{output_dir}/distributions'
-    os.makedirs(dist_dir, exist_ok=True)
-    
-    # Set plot style
-    plt.style.use('seaborn-v0_8-whitegrid')
+    # Create output directory if it doesn't exist
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
     
     # 1. Plot distribution of key numeric features
-    numeric_features = ['living_area', 'rooms', 'floor_count', 'sale_year', 'sale_month']
+    numeric_features = ['Living_Area', 'Rooms', 'floor_count', 'sale_year', 'sale_month']
     
     # Add price if it exists in the dataframe
-    if 'price' in df_processed.columns:
-        numeric_features.append('price')
+    if 'Price' in df_processed.columns:
+        numeric_features.append('Price')
         
     # Add new numeric features if they exist
-    if 'yearly_foreclosure_rate' in df_processed.columns:
-        numeric_features.append('yearly_foreclosure_rate')
-    
     if 'rolling_3m_price_mean' in df_processed.columns:
         numeric_features.append('rolling_3m_price_mean')
-        
+    
     if 'price_yoy_change' in df_processed.columns:
         numeric_features.append('price_yoy_change')
     
-    for feature in numeric_features:
-        if feature in df_processed.columns:
-            plt.figure(figsize=(10, 6))
-            sns.histplot(data=df_processed, x=feature, hue='is_foreclosure', bins=30, kde=True)
-            plt.title(f'Distribution of {feature} by Foreclosure Status')
-            plt.xlabel(feature)
-            plt.ylabel('Count')
-            plt.legend(['Regular', 'Foreclosure'])
-            plt.tight_layout()
-            plt.savefig(f'{dist_dir}/{feature}_distribution.png')
-            plt.close()
+    # Filter list to only include features that actually exist in dataframe
+    numeric_features = [f for f in numeric_features if f in df_processed.columns]
     
-    # 2. Plot categorical features
-    categorical_features = ['property_type', 'city_binned', 'postal_region']
+    # Create a figure with subplots for each numeric feature
+    n_features = len(numeric_features)
+    n_cols = 2
+    n_rows = (n_features + 1) // 2  # Ceiling division
     
-    # Add economic era if it exists
-    if 'economic_era' in df_processed.columns:
-        categorical_features.append('economic_era')
-    
-    for feature in categorical_features:
-        if feature in df_processed.columns:
-            # Calculate value counts
-            counts = df_processed.groupby([feature, 'is_foreclosure']).size().unstack().fillna(0)
-            
-            # Calculate percentage of foreclosures within each category
-            if 1 in counts.columns:  # Ensure 'is_foreclosure' column exists
-                counts['foreclosure_pct'] = counts[1] / (counts[0] + counts[1]) * 100
-                
-                # Sort by percentage for better visualization
-                counts = counts.sort_values('foreclosure_pct', ascending=False)
-                
-                # Only keep top categories for readability
-                if len(counts) > 15:
-                    counts = counts.head(15)
-                
-                plt.figure(figsize=(12, 8))
-                counts['foreclosure_pct'].plot(kind='bar')
-                plt.title(f'Foreclosure Percentage by {feature}')
-                plt.xlabel(feature)
-                plt.ylabel('Foreclosure Percentage (%)')
-                plt.xticks(rotation=45, ha='right')
-                plt.tight_layout()
-                plt.savefig(f'{dist_dir}/{feature}_foreclosure_pct.png')
-                plt.close()
-    
-    # 3. Plot time-based features
-    if 'sale_year' in df_processed.columns:
-        yearly = df_processed.groupby(['sale_year', 'is_foreclosure']).size().unstack().fillna(0)
+    plt.figure(figsize=(14, 4 * n_rows))
+    for i, feature in enumerate(numeric_features):
+        plt.subplot(n_rows, n_cols, i+1)
         
-        plt.figure(figsize=(12, 6))
-        if 1 in yearly.columns:
-            plt.plot(yearly.index, yearly[1], marker='o', label='Foreclosure')
-        if 0 in yearly.columns:
-            plt.plot(yearly.index, yearly[0], marker='x', label='Regular')
-        plt.title('Sales by Year')
-        plt.xlabel('Year')
-        plt.ylabel('Number of Sales')
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(f'{dist_dir}/sales_by_year.png')
-        plt.close()
+        # Plot distributions separately for each class
+        sns.histplot(data=df_processed, x=feature, hue='is_foreclosure', 
+                    kde=True, element='step', common_norm=False, bins=30)
         
-        # Foreclosure percentage by year
-        if 0 in yearly.columns and 1 in yearly.columns:
-            yearly['foreclosure_pct'] = yearly[1] / (yearly[0] + yearly[1]) * 100
-            
-            plt.figure(figsize=(12, 6))
-            plt.bar(yearly.index, yearly['foreclosure_pct'])
-            plt.title('Foreclosure Percentage by Year')
-            plt.xlabel('Year')
-            plt.ylabel('Foreclosure Percentage (%)')
-            plt.grid(True, axis='y')
-            plt.savefig(f'{dist_dir}/foreclosure_percentage_by_year.png')
-            plt.close()
-    
-    # 4. Plot yearly foreclosure rate
-    if 'yearly_foreclosure_rate' in df_processed.columns and 'sale_year' in df_processed.columns:
-        # Calculate average yearly foreclosure rate
-        yearly_rates = df_processed.groupby('sale_year')['yearly_foreclosure_rate'].mean()
-        
-        plt.figure(figsize=(12, 6))
-        plt.plot(yearly_rates.index, yearly_rates.values, marker='o', color='red', linewidth=2)
-        plt.title('Yearly Foreclosure Rate Trend')
-        plt.xlabel('Year')
-        plt.ylabel('Foreclosure Rate')
-        plt.grid(True)
-        plt.savefig(f'{dist_dir}/yearly_foreclosure_rate_trend.png')
-        plt.close()
-    
-    # 5. Plot foreclosure rate by economic era 
-    if 'economic_era' in df_processed.columns:
-        era_rates = df_processed.groupby('economic_era')['is_foreclosure'].mean() * 100
-        
-        # Sort eras chronologically for better visualization
-        era_order = ['pre_financial_crisis', 'financial_crisis', 'recovery_period', 'covid_period', 'post_covid']
-        era_rates = era_rates.reindex([e for e in era_order if e in era_rates.index])
-        
-        plt.figure(figsize=(12, 6))
-        era_rates.plot(kind='bar', color='darkblue')
-        plt.title('Foreclosure Rate by Economic Era')
-        plt.xlabel('Economic Era')
-        plt.ylabel('Foreclosure Rate (%)')
-        plt.xticks(rotation=45, ha='right') 
-        plt.grid(True, axis='y')
+        plt.title(f'{feature} Distribution by Class')
         plt.tight_layout()
-        plt.savefig(f'{dist_dir}/foreclosure_rate_by_economic_era.png')
-        plt.close()
-        
-    # 6. Plot rolling statistics if available
-    rolling_features = ['rolling_3m_price_mean', 'price_yoy_change']
-    rolling_features = [f for f in rolling_features if f in df_processed.columns]
     
-    if rolling_features and 'sale_date' in df_processed.columns:
-        for feature in rolling_features:
-            # Calculate the average of the rolling statistic by month
-            df_processed['year_month'] = df_processed['sale_date'].dt.to_period('M')
-            monthly_avg = df_processed.groupby(['year_month', 'is_foreclosure'])[feature].mean().unstack().fillna(0)
-            
-            plt.figure(figsize=(14, 7))
-            
-            # Plot for both foreclosure and regular sales if available
-            if 1 in monthly_avg.columns:
-                plt.plot(monthly_avg.index.astype(str), monthly_avg[1], 
-                         label='Foreclosure', marker='o', markersize=4, alpha=0.7)
-            if 0 in monthly_avg.columns:
-                plt.plot(monthly_avg.index.astype(str), monthly_avg[0], 
-                         label='Regular', marker='x', markersize=4, alpha=0.7)
-                
-            plt.title(f'Monthly Average {feature} Trend')
-            plt.xlabel('Month')
-            plt.ylabel(feature)
-            plt.legend()
-            plt.grid(True, linestyle='--', alpha=0.7)
-            plt.xticks(rotation=90)
-            plt.tight_layout()
-            plt.savefig(f'{dist_dir}/{feature}_monthly_trend.png')
-            plt.close()
+    plt.savefig(f'{output_dir}/numeric_distributions.png')
+    logging.info(f"Numeric feature distributions saved to {output_dir}/numeric_distributions.png")
     
-    # 7. Correlation heatmap for numeric features
-    numeric_cols = ['living_area', 'rooms', 'floor_count', 'sale_year', 'sale_month', 'is_foreclosure']
-    
-    # Add new numeric features to correlation analysis
-    if 'yearly_foreclosure_rate' in df_processed.columns:
-        numeric_cols.append('yearly_foreclosure_rate')
-    if 'rolling_3m_price_mean' in df_processed.columns:
-        numeric_cols.append('rolling_3m_price_mean')
-    if 'price_yoy_change' in df_processed.columns:
-        numeric_cols.append('price_yoy_change')
-    
-    numeric_cols = [col for col in numeric_cols if col in df_processed.columns]
-    
-    if len(numeric_cols) > 1:  # Need at least 2 columns for correlation
-        plt.figure(figsize=(12, 10))
-        corr_matrix = df_processed[numeric_cols].corr()
-        sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f')
-        plt.title('Correlation Matrix')
-        plt.tight_layout()
-        plt.savefig(f'{dist_dir}/correlation_heatmap.png')
-        plt.close()
+    # 2. Plot class distribution
+    plt.figure(figsize=(8, 6))
+    sns.countplot(data=df_processed, x='is_foreclosure')
+    plt.title('Class Distribution')
+    plt.xlabel('Is Foreclosure')
+    plt.ylabel('Count')
+    plt.xticks([0, 1], ['Regular Sale', 'Foreclosure'])
+    plt.tight_layout()
+    plt.savefig(f'{output_dir}/class_distribution.png')
+    logging.info(f"Class distribution saved to {output_dir}/class_distribution.png")
 
 def compare_models(models_dict, X_test=None, y_test=None, output_dir='outputs/general'):
     """Compare multiple models in a summary table and charts.

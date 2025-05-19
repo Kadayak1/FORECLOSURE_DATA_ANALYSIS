@@ -1,0 +1,27 @@
+Random Forest Classifier Performance Summary
+===========================================
+
+Accuracy: 0.8240
+Precision (Foreclosure class): 0.6579
+Recall (Foreclosure class): 0.8333
+F1 Score (Foreclosure class): 0.7353
+ROC AUC: 0.9227
+PR AUC: 0.8558
+
+Best Hyperparameters:
+  class_weight: balanced
+  max_depth: 20
+  min_samples_split: 5
+  n_estimators: 100
+
+Top 10 Most Important Features:
+  1. sale_year: 0.2413
+  2. sale_day_of_week: 0.0903
+  3. rolling_3m_price_mean: 0.0824
+  4. Living_Area: 0.0525
+  5. sale_month: 0.0501
+  6. price_yoy_change: 0.0481
+  7. Rooms: 0.0244
+  8. is_weekend: 0.0244
+  9. season_Spring: 0.0234
+  10. sale_quarter: 0.0181

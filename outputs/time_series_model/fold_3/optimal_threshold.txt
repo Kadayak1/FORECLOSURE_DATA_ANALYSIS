@@ -1,2 +1,0 @@
-Optimal threshold: 0.1000
-F1 score at optimal threshold: 0.0000

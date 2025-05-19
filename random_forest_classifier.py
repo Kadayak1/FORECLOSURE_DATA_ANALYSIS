@@ -249,76 +249,109 @@ def train_random_forest(X_train, X_test, y_train, y_test, X, output_dir='outputs
     feature_importances = pd.DataFrame({
         'Feature': X.columns,
         'Importance': rf.feature_importances_
-    }).sort_values('Importance', ascending=False)
+    })
+    feature_importances = feature_importances.sort_values('Importance', ascending=False)
     
-    # Save to CSV
+    # Save feature importances to CSV
     feature_importances.to_csv(os.path.join(output_dir, 'feature_importances.csv'), index=False)
     
-    # Plot top 20 important features
-    plt.figure(figsize=(10, 8))
+    # Plot feature importances (top 20)
     top_features = feature_importances.head(20)
-    plt.barh(top_features['Feature'], top_features['Importance'])
+    plt.figure(figsize=(10, 8))
+    plt.barh(top_features['Feature'][::-1], top_features['Importance'][::-1])
     plt.xlabel('Importance')
     plt.title('Top 20 Feature Importances')
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, 'feature_importances.png'))
     plt.close()
     
-    # 2. Use permutation importance (more reliable than built-in feature importance)
-    result = permutation_importance(
-        rf, X_test, y_test, 
-        n_repeats=10, 
-        random_state=42, 
-        n_jobs=-1
-    )
+    # 2. Calculate permutation importance (more reliable)
+    logging.info("Calculating permutation importance...")
     
-    perm_importance = pd.DataFrame({
-        'Feature': X.columns,
-        'Importance': result.importances_mean
-    }).sort_values('Importance', ascending=False)
+    try:
+        # This may take a while for large datasets
+        perm_importance = permutation_importance(
+            rf, X_test, y_test, n_repeats=10, random_state=42, n_jobs=-1
+        )
+        
+        # Create DataFrame with permutation importances
+        perm_importances = pd.DataFrame({
+            'Feature': X.columns,
+            'Importance': perm_importance.importances_mean,
+            'Std': perm_importance.importances_std
+        })
+        perm_importances = perm_importances.sort_values('Importance', ascending=False)
+        
+        # Save permutation importances to CSV
+        perm_importances.to_csv(os.path.join(output_dir, 'permutation_importances.csv'), index=False)
+        
+        # Plot permutation importances (top 20)
+        top_perm_features = perm_importances.head(20)
+        plt.figure(figsize=(10, 8))
+        plt.barh(top_perm_features['Feature'][::-1], top_perm_features['Importance'][::-1],
+                xerr=top_perm_features['Std'][::-1], capsize=5)
+        plt.xlabel('Mean decrease in accuracy')
+        plt.title('Top 20 Permutation Feature Importances')
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir, 'permutation_importance.png'))
+        plt.close()
+    except Exception as e:
+        logging.warning(f"Error calculating permutation importance: {e}")
     
-    # Save to CSV
-    perm_importance.to_csv(os.path.join(output_dir, 'permutation_importance.csv'), index=False)
+    # Create a directory for RF-specific plots
+    rf_plots_dir = os.path.join(output_dir, 'plots')
+    os.makedirs(rf_plots_dir, exist_ok=True)
     
-    # Plot top 20 permutation importance features
-    plt.figure(figsize=(10, 8))
-    top_perm_features = perm_importance.head(20)
-    plt.barh(top_perm_features['Feature'], top_perm_features['Importance'])
-    plt.xlabel('Permutation Importance')
-    plt.title('Top 20 Features (Permutation Importance)')
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, 'permutation_importance.png'))
-    plt.close()
+    # Plot decision trees (first few trees in the forest)
+    try:
+        from sklearn.tree import plot_tree
+        
+        # Plot first 3 trees from the forest
+        for i in range(min(3, len(rf.estimators_))):
+            plt.figure(figsize=(20, 12))
+            plot_tree(rf.estimators_[i], feature_names=X.columns, filled=True, max_depth=3,
+                     class_names=['Regular', 'Foreclosure'], rounded=True)
+            plt.title(f'Decision Tree {i+1} from Random Forest')
+            plt.savefig(os.path.join(rf_plots_dir, f'tree_{i+1}.png'), dpi=100)
+            plt.close()
+    except Exception as e:
+        logging.warning(f"Error plotting decision trees: {e}")
     
-    # Check for overfitting
-    logging.info("Checking for overfitting...")
-    y_train_pred = rf.predict(X_train)
-    train_accuracy = accuracy_score(y_train, y_train_pred)
-    train_f1 = f1_score(y_train, y_train_pred)
+    # Create a comprehensive report
+    with open(os.path.join(output_dir, 'rf_summary.txt'), 'w') as f:
+        f.write("Random Forest Classifier Performance Summary\n")
+        f.write("===========================================\n\n")
+        
+        # Basic metrics
+        f.write(f"Accuracy: {accuracy:.4f}\n")
+        cr_dict = classification_report(y_test, y_pred, output_dict=True)
+        f.write(f"Precision (Foreclosure class): {cr_dict['1']['precision']:.4f}\n")
+        f.write(f"Recall (Foreclosure class): {cr_dict['1']['recall']:.4f}\n")
+        f.write(f"F1 Score (Foreclosure class): {cr_dict['1']['f1-score']:.4f}\n")
+        f.write(f"ROC AUC: {roc_auc:.4f}\n")
+        f.write(f"PR AUC: {pr_auc:.4f}\n\n")
+        
+        # Hyperparameters
+        f.write("Best Hyperparameters:\n")
+        for param, value in grid_search.best_params_.items():
+            f.write(f"  {param}: {value}\n")
+        f.write("\n")
+        
+        # Top Features
+        f.write("Top 10 Most Important Features:\n")
+        for i, (feature, importance) in enumerate(zip(feature_importances['Feature'].head(10), 
+                                                    feature_importances['Importance'].head(10))):
+            f.write(f"  {i+1}. {feature}: {importance:.4f}\n")
     
-    test_f1 = f1_score(y_test, y_pred)
-    
-    logging.info(f"Training accuracy: {train_accuracy:.4f}, F1: {train_f1:.4f}")
-    logging.info(f"Test accuracy: {accuracy:.4f}, F1: {test_f1:.4f}")
-    
-    acc_diff = train_accuracy - accuracy
-    f1_diff = train_f1 - test_f1
-    
-    logging.info(f"Accuracy difference: {acc_diff:.4f}")
-    logging.info(f"F1 difference: {f1_diff:.4f}")
-    
-    if acc_diff > 0.15 or f1_diff > 0.15:
-        logging.warning("Potential overfitting detected: training performance is significantly higher than test performance")
-    
-    # Return performance metrics
+    # Calculate metrics for return
     metrics = {
         'accuracy': accuracy,
-        'f1_score': test_f1,
+        'precision': cr_dict['1']['precision'],
+        'recall': cr_dict['1']['recall'],
+        'f1': cr_dict['1']['f1-score'],
         'roc_auc': roc_auc,
-        'pr_auc': pr_auc,
-        'best_threshold': best_threshold,
-        'train_test_acc_diff': acc_diff,
-        'train_test_f1_diff': f1_diff
+        'rf_model': rf,
+        'optimal_threshold': best_threshold
     }
     
     return metrics 
