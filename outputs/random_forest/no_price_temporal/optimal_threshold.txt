@@ -1,2 +1,2 @@
 Optimal threshold: 0.4000
-F1 score at optimal threshold: 0.6640
+F1 score at optimal threshold: 0.6403

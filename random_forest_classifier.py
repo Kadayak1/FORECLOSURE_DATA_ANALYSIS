@@ -52,7 +52,7 @@ def train_random_forest(X_train, X_test, y_train, y_test, X, output_dir='outputs
     # Use a simpler model for cross-validation to save time
     base_rf = RandomForestClassifier(
         n_estimators=100,
-        class_weight='balanced',
+        class_weight=class_weight_dict,
         random_state=42,
         n_jobs=-1
     )
@@ -100,17 +100,18 @@ def train_random_forest(X_train, X_test, y_train, y_test, X, output_dir='outputs
             'n_estimators': [100, 200],
             'max_depth': [10, 20],
             'min_samples_split': [2, 5],
-            'class_weight': ['balanced']
+            'class_weight': [class_weight_dict]  # Use the custom weights dictionary
         }
     else:
         # More extensive grid for smaller feature sets
         param_grid = {
             'n_estimators': [100, 200, 300],
-            'max_depth': [10, 20, 30, None],
+            'max_depth': [10, 20, 30, 40, 50, None],  # Added higher depth values
             'min_samples_split': [2, 5, 10],
-            'min_samples_leaf': [1, 2, 4],
+            'min_samples_leaf': [1, 2, 4, 8],  # Added higher value
             'max_features': ['sqrt', 'log2'],
-            'class_weight': ['balanced']
+            'class_weight': [class_weight_dict],
+            'oob_score': [True]  # Add out-of-bag score tracking
         }
     
     # Use GridSearchCV for smaller grids, RandomizedSearchCV for larger ones
@@ -127,11 +128,12 @@ def train_random_forest(X_train, X_test, y_train, y_test, X, output_dir='outputs
         # Use randomized search for larger parameter spaces
         param_distributions = {
             'n_estimators': [100, 200, 300, 400],
-            'max_depth': [10, 15, 20, 25, 30, None],
+            'max_depth': [10, 15, 20, 25, 30, 40, 50, None],  # Added higher depth values
             'min_samples_split': [2, 5, 10],
-            'min_samples_leaf': [1, 2, 4],
+            'min_samples_leaf': [1, 2, 4, 8],  # Added higher value
             'max_features': ['sqrt', 'log2', None],
-            'class_weight': ['balanced']
+            'class_weight': [class_weight_dict],
+            'oob_score': [True]  # Add out-of-bag score tracking
         }
         
         grid_search = RandomizedSearchCV(
@@ -154,6 +156,10 @@ def train_random_forest(X_train, X_test, y_train, y_test, X, output_dir='outputs
     
     # Get the best model from hyperparameter tuning
     rf = grid_search.best_estimator_
+    
+    # Log OOB score if available
+    if hasattr(rf, 'oob_score_'):
+        logging.info(f"Out-of-bag score: {rf.oob_score_:.4f}")
     
     # Train on full training set
     rf.fit(X_train, y_train)
@@ -329,7 +335,13 @@ def train_random_forest(X_train, X_test, y_train, y_test, X, output_dir='outputs
         f.write(f"Recall (Foreclosure class): {cr_dict['1']['recall']:.4f}\n")
         f.write(f"F1 Score (Foreclosure class): {cr_dict['1']['f1-score']:.4f}\n")
         f.write(f"ROC AUC: {roc_auc:.4f}\n")
-        f.write(f"PR AUC: {pr_auc:.4f}\n\n")
+        f.write(f"PR AUC: {pr_auc:.4f}\n")
+        
+        # Add OOB score if available
+        if hasattr(rf, 'oob_score_'):
+            f.write(f"Out-of-bag score: {rf.oob_score_:.4f}\n")
+        
+        f.write("\n")
         
         # Hyperparameters
         f.write("Best Hyperparameters:\n")
@@ -353,5 +365,9 @@ def train_random_forest(X_train, X_test, y_train, y_test, X, output_dir='outputs
         'rf_model': rf,
         'optimal_threshold': best_threshold
     }
+    
+    # Add OOB score to metrics if available
+    if hasattr(rf, 'oob_score_'):
+        metrics['oob_score'] = rf.oob_score_
     
     return metrics 

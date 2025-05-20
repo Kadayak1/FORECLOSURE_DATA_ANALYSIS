@@ -469,17 +469,47 @@ def compare_models(models_dict, X_test=None, y_test=None, output_dir='outputs/ge
         # If models_dict contains metrics, use them directly
         for name, metrics in models_dict.items():
             if isinstance(metrics, dict):
-                # For RandomForest, we have a metrics dictionary
-                results.append({
-                    'Model': name,
-                    'Accuracy': metrics.get('accuracy', 0),
-                    'Precision': metrics.get('precision', 0),
-                    'Recall': metrics.get('recall', 0),
-                    'F1 Score': metrics.get('f1', 0),  # Changed from f1_score to f1
-                    'ROC AUC': metrics.get('roc_auc', 0)
-                })
+                # Check if this is a metrics dictionary (like for RandomForest)
+                if all(key in metrics for key in ['accuracy', 'precision', 'recall', 'f1']):
+                    results.append({
+                        'Model': name,
+                        'Accuracy': metrics.get('accuracy', 0),
+                        'Precision': metrics.get('precision', 0),
+                        'Recall': metrics.get('recall', 0),
+                        'F1 Score': metrics.get('f1', 0),
+                        'ROC AUC': metrics.get('roc_auc', 0)
+                    })
+                # It might be a dict of classifier objects (like for dummy classifiers)
+                elif 'most_frequent' in metrics:
+                    # Extract most_frequent strategy classifier
+                    classifier = metrics.get('most_frequent')
+                    if classifier is not None and X_test is not None and y_test is not None:
+                        # Calculate metrics for this classifier
+                        y_pred = classifier.predict(X_test)
+                        
+                        from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+                        accuracy = accuracy_score(y_test, y_pred)
+                        precision = precision_score(y_test, y_pred, zero_division=0)
+                        recall = recall_score(y_test, y_pred, zero_division=0)
+                        f1 = f1_score(y_test, y_pred, zero_division=0)
+                        
+                        # Try to get ROC AUC
+                        try:
+                            y_proba = classifier.predict_proba(X_test)[:, 1]
+                            roc_auc = roc_auc_score(y_test, y_proba)
+                        except:
+                            roc_auc = 0.5
+                        
+                        results.append({
+                            'Model': 'Dummy',
+                            'Accuracy': accuracy,
+                            'Precision': precision,
+                            'Recall': recall,
+                            'F1 Score': f1,
+                            'ROC AUC': roc_auc
+                        })
             else:
-                # For dummy classifiers, we might have a different format
+                # For other formats
                 logging.warning(f"Unexpected metrics format for {name}")
     
     # Create and save comparison table

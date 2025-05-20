@@ -1,27 +1,27 @@
 Random Forest Classifier Performance Summary
 ===========================================
 
-Accuracy: 0.8313
-Precision (Foreclosure class): 0.6759
-Recall (Foreclosure class): 0.8167
-F1 Score (Foreclosure class): 0.7396
-ROC AUC: 0.9205
-PR AUC: 0.8445
+Accuracy: 0.8460
+Precision (Foreclosure class): 0.7317
+Recall (Foreclosure class): 0.7500
+F1 Score (Foreclosure class): 0.7407
+ROC AUC: 0.9214
+PR AUC: 0.8432
 
 Best Hyperparameters:
-  class_weight: balanced
+  class_weight: {0: np.float64(0.7075389948006933), 1: np.float64(1.7045929018789143)}
   max_depth: 20
   min_samples_split: 5
-  n_estimators: 100
+  n_estimators: 200
 
 Top 10 Most Important Features:
-  1. sale_year: 0.2650
-  2. sale_day_of_week: 0.0945
-  3. Living_Area: 0.0654
-  4. sale_month: 0.0522
-  5. Rooms: 0.0320
-  6. season_Spring: 0.0313
-  7. is_weekend: 0.0268
-  8. sale_quarter: 0.0246
-  9. Property_Type_Villalejlighed: 0.0140
-  10. property_season_Ejerlejlighed_Spring: 0.0136
+  1. sale_year: 0.2751
+  2. sale_day_of_week: 0.0986
+  3. Living_Area: 0.0632
+  4. sale_month: 0.0464
+  5. Rooms: 0.0311
+  6. season_Spring: 0.0286
+  7. sale_quarter: 0.0255
+  8. is_weekend: 0.0253
+  9. Property_Type_Villalejlighed: 0.0136
+  10. Roof_Type_Tagpap med stor hældning: 0.0130

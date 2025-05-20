@@ -196,10 +196,43 @@ def main():
         
         # Run model(s) based on user choice
         if choice in [1, 3]:
-            # Train and evaluate dummy classifiers
+            # Train and evaluate baseline models (dummy classifiers)
             dummy_output_dir = f'outputs/dummy/{feature_set}'
-            dummy_metrics = train_dummy_classifiers(X_train, X_test, y_train, y_test, output_dir=dummy_output_dir)
-            models_performance['dummy'] = dummy_metrics
+            dummy_classifiers = train_dummy_classifiers(X_train, X_test, y_train, y_test, output_dir=dummy_output_dir)
+            
+            # Create a metrics dictionary for the most_frequent strategy dummy classifier
+            most_frequent_clf = dummy_classifiers.get('most_frequent')
+            if most_frequent_clf:
+                y_pred = most_frequent_clf.predict(X_test)
+                from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+                
+                # Calculate metrics
+                accuracy = accuracy_score(y_test, y_pred)
+                precision = precision_score(y_test, y_pred, zero_division=0)
+                recall = recall_score(y_test, y_pred, zero_division=0)
+                f1 = f1_score(y_test, y_pred, zero_division=0)
+                
+                # Try to get ROC AUC if possible
+                try:
+                    y_proba = most_frequent_clf.predict_proba(X_test)[:, 1]
+                    roc_auc = roc_auc_score(y_test, y_proba)
+                except:
+                    roc_auc = 0.5
+                
+                # Create a metrics dictionary similar to the random forest metrics
+                dummy_metrics = {
+                    'accuracy': accuracy,
+                    'precision': precision,
+                    'recall': recall,
+                    'f1': f1,
+                    'roc_auc': roc_auc
+                }
+                
+                # Store in models_performance
+                models_performance['dummy'] = dummy_metrics
+            else:
+                # Fallback to storing the classifier objects
+                models_performance['dummy'] = dummy_classifiers
         
         if choice in [2, 3]:
             # Train and evaluate random forest
