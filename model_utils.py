@@ -451,7 +451,7 @@ def compare_models(models_dict, X_test=None, y_test=None, output_dir='outputs/ge
                     'Accuracy': accuracy,
                     'Precision': precision,
                     'Recall': recall,
-                    'F1': f1,
+                    'F1 Score': f1,
                     'ROC AUC': roc_auc
                 })
         
@@ -475,7 +475,7 @@ def compare_models(models_dict, X_test=None, y_test=None, output_dir='outputs/ge
                     'Accuracy': metrics.get('accuracy', 0),
                     'Precision': metrics.get('precision', 0),
                     'Recall': metrics.get('recall', 0),
-                    'F1': metrics.get('f1_score', 0),
+                    'F1 Score': metrics.get('f1', 0),  # Changed from f1_score to f1
                     'ROC AUC': metrics.get('roc_auc', 0)
                 })
             else:
@@ -524,15 +524,30 @@ def compare_models(models_dict, X_test=None, y_test=None, output_dir='outputs/ge
         plt.close()
         
         # Create bar chart comparison for numeric columns
-        metrics = ['Accuracy', 'Precision', 'Recall', 'F1', 'ROC AUC']
+        metrics = ['Accuracy', 'Precision', 'Recall', 'F1 Score', 'ROC AUC']
+        
+        # Debugging to print column names
+        logging.info(f"Available columns in results_df: {list(results_df.columns)}")
+        
         for metric in metrics:
             if metric in results_df.columns:
+                logging.info(f"Creating chart for {metric}...")
                 plt.figure(figsize=(12, 6))
-                sns.barplot(x='Model', y=metric, data=results_df)
+                ax = sns.barplot(x='Model', y=metric, data=results_df)
+                
+                # Add value labels above each bar
+                for i, v in enumerate(results_df[metric]):
+                    ax.text(i, v + 0.02, f"{v:.2f}", ha='center')
+                
                 plt.title(f'{metric} Comparison Across Models')
                 plt.xticks(rotation=45, ha='right')
+                plt.ylim(0, 1.0)  # Set fixed y-axis limit to ensure bars are visible
                 plt.tight_layout()
-                plt.savefig(f'{output_dir}/{metric.lower().replace(" ", "_")}_comparison.png')
+                
+                # Generate file name and save
+                file_name = f'{output_dir}/{metric.lower().replace(" ", "_")}_comparison.png'
+                plt.savefig(file_name)
+                logging.info(f"Saved comparison chart to {file_name}")
                 plt.close()
     
     logging.info("Model comparison complete.")
